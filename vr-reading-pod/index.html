@@ -1,0 +1,2240 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>AR Book Showcase</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+      "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+    }
+  }
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;500;600;700;800;900&family=Share+Tech+Mono&display=swap"
+    rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #010912;
+      --s1: #071525;
+      --s2: #0c1e35;
+      --neon: #0ff;
+      --hot: #ff2d78;
+      --gold: #ffd600;
+      --lime: #39ff14;
+      --violet: #bf5fff;
+      --t1: #e8f4ff;
+      --t2: rgba(180, 215, 255, .6);
+      --t3: rgba(100, 155, 210, .38);
+      --glass: rgba(7, 21, 37, .92);
+      --glass2: rgba(5, 15, 28, .97);
+      --bd: rgba(0, 255, 255, .1);
+      --bd2: rgba(0, 255, 255, .32);
+      --ff: 'Exo 2', sans-serif;
+      --fh: 'Rajdhani', sans-serif;
+      --fm: 'Share Tech Mono', monospace
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: var(--ff);
+      color: var(--t1);
+      -webkit-tap-highlight-color: transparent;
+      -webkit-font-smoothing: antialiased;
+      touch-action: none
+    }
+
+    /* ── GPU-accelerated base ── */
+    #mindar-container {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      /* Force compositing layer to prevent flicker */
+      transform: translateZ(0);
+      will-change: transform;
+      backface-visibility: hidden;
+    }
+
+    /* Canvas inside MindAR — prevent sub-pixel jitter */
+    #mindar-container canvas {
+      display: block;
+      transform: translateZ(0);
+      backface-visibility: hidden;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+
+    /* ── Loading screen ── */
+    #ls {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      overflow: hidden
+    }
+
+    .ls-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0, 255, 255, .03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 255, .03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      /* CSS-only pan — no JS overhead */
+      animation: gridPan 20s linear infinite;
+      will-change: background-position;
+    }
+
+    @keyframes gridPan {
+      from {
+        background-position: 0 0
+      }
+
+      to {
+        background-position: 40px 40px
+      }
+    }
+
+    .ls-glow {
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0, 255, 255, .06), transparent 70%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      animation: gp 3s ease-in-out infinite;
+      will-change: transform;
+    }
+
+    @keyframes gp {
+
+      0%,
+      100% {
+        transform: translate(-50%, -50%) scale(1)
+      }
+
+      50% {
+        transform: translate(-50%, -50%) scale(1.15)
+      }
+    }
+
+    .ls-inner {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      padding: 0 28px;
+      text-align: center
+    }
+
+    .ls-chip {
+      font-family: var(--fm);
+      font-size: .55rem;
+      letter-spacing: .45em;
+      text-transform: uppercase;
+      color: var(--neon);
+      padding: 4px 16px;
+      border: 1px solid rgba(0, 255, 255, .3);
+      border-radius: 3px;
+      background: rgba(0, 255, 255, .05)
+    }
+
+    .ls-title {
+      font-family: var(--fh);
+      font-size: clamp(2.4rem, 10vw, 4rem);
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: .06em;
+      text-transform: uppercase
+    }
+
+    .ls-title .l1 {
+      display: block;
+      color: var(--t1)
+    }
+
+    .ls-title .l2 {
+      display: block;
+      background: linear-gradient(90deg, var(--neon), var(--violet), var(--hot));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 20px rgba(0, 255, 255, .4))
+    }
+
+    .ls-sub {
+      font-family: var(--fm);
+      font-size: .6rem;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: var(--t3)
+    }
+
+    .ls-spin {
+      position: relative;
+      width: 64px;
+      height: 64px
+    }
+
+    .ls-spin span {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      will-change: transform;
+    }
+
+    .ls-spin span:nth-child(1) {
+      border-top-color: var(--neon);
+      animation: spin 1s linear infinite
+    }
+
+    .ls-spin span:nth-child(2) {
+      inset: 9px;
+      border-right-color: var(--hot);
+      animation: spin 1.5s linear infinite reverse
+    }
+
+    .ls-spin span:nth-child(3) {
+      inset: 18px;
+      border-bottom-color: var(--gold);
+      animation: spin 2s linear infinite
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    .ls-bar {
+      width: min(260px, 70vw);
+      height: 2px;
+      background: rgba(255, 255, 255, .06);
+      border-radius: 99px;
+      overflow: visible;
+      position: relative
+    }
+
+    .ls-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--neon), var(--violet), var(--hot));
+      border-radius: 99px;
+      transition: width .45s ease;
+      position: relative;
+      will-change: width;
+    }
+
+    .ls-fill::after {
+      content: '';
+      position: absolute;
+      right: -3px;
+      top: -3px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--neon);
+      box-shadow: 0 0 12px var(--neon), 0 0 24px var(--neon)
+    }
+
+    .ls-stat {
+      font-family: var(--fm);
+      font-size: .62rem;
+      letter-spacing: .2em;
+      color: var(--t3);
+      text-transform: uppercase;
+      min-height: 16px
+    }
+
+    /* ── HUD ── */
+    #hud {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: max(env(safe-area-inset-top), 14px) 18px 14px;
+      pointer-events: none;
+      background: linear-gradient(to bottom, rgba(1, 9, 18, .8), transparent);
+      transform: translateZ(0);
+      /* own layer */
+    }
+
+    .hlogo {
+      font-family: var(--fh);
+      font-size: .9rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      line-height: 1
+    }
+
+    .hlogo-sub {
+      font-family: var(--fm);
+      font-size: .46rem;
+      letter-spacing: .28em;
+      color: var(--neon);
+      margin-top: 3px;
+      display: block
+    }
+
+    #hlive {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0, 255, 255, .07);
+      border: 1px solid rgba(0, 255, 255, .28);
+      backdrop-filter: blur(12px);
+      border-radius: 3px;
+      padding: 6px 14px;
+      font-family: var(--fm);
+      font-size: .56rem;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--neon)
+    }
+
+    .hlive-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--neon);
+      box-shadow: 0 0 8px var(--neon);
+      animation: blink 1s ease-in-out infinite
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .25
+      }
+    }
+
+    .hbooks {
+      font-family: var(--fm);
+      font-size: .52rem;
+      letter-spacing: .16em;
+      color: var(--t3);
+      text-transform: uppercase;
+      text-align: right
+    }
+
+    .hbooks strong {
+      display: block;
+      font-size: 1.1rem;
+      color: var(--gold);
+      font-family: var(--fh);
+      font-weight: 700;
+      letter-spacing: .06em;
+      line-height: 1.1
+    }
+
+    /* ── Scan UI ── */
+    #scan-ui {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-bottom: max(env(safe-area-inset-bottom), 34px);
+      pointer-events: none;
+      transform: translateZ(0);
+    }
+
+    .scan-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--glass);
+      border: 1px solid var(--bd);
+      backdrop-filter: blur(22px);
+      border-radius: 3px;
+      padding: 11px 24px;
+      margin-bottom: 24px
+    }
+
+    .scan-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--neon);
+      box-shadow: 0 0 12px var(--neon);
+      animation: blink 1.3s ease-in-out infinite;
+      flex-shrink: 0
+    }
+
+    .scan-txt {
+      font-family: var(--fm);
+      font-size: .64rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--t2)
+    }
+
+    .scan-txt strong {
+      color: var(--neon);
+      font-weight: 400
+    }
+
+    #scan-frame {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -55%);
+      width: min(200px, 50vw);
+      height: min(200px, 50vw);
+      pointer-events: none;
+      z-index: 99
+    }
+
+    .sf {
+      position: absolute;
+      width: 24px;
+      height: 24px
+    }
+
+    .sf::before,
+    .sf::after {
+      content: '';
+      position: absolute;
+      background: var(--neon);
+      box-shadow: 0 0 6px var(--neon)
+    }
+
+    .sf-tl {
+      top: 0;
+      left: 0
+    }
+
+    .sf-tl::before {
+      width: 100%;
+      height: 2px;
+      top: 0;
+      left: 0
+    }
+
+    .sf-tl::after {
+      width: 2px;
+      height: 100%;
+      top: 0;
+      left: 0
+    }
+
+    .sf-tr {
+      top: 0;
+      right: 0
+    }
+
+    .sf-tr::before {
+      width: 100%;
+      height: 2px;
+      top: 0;
+      right: 0
+    }
+
+    .sf-tr::after {
+      width: 2px;
+      height: 100%;
+      top: 0;
+      right: 0
+    }
+
+    .sf-bl {
+      bottom: 0;
+      left: 0
+    }
+
+    .sf-bl::before {
+      width: 100%;
+      height: 2px;
+      bottom: 0;
+      left: 0
+    }
+
+    .sf-bl::after {
+      width: 2px;
+      height: 100%;
+      bottom: 0;
+      left: 0
+    }
+
+    .sf-br {
+      bottom: 0;
+      right: 0
+    }
+
+    .sf-br::before {
+      width: 100%;
+      height: 2px;
+      bottom: 0;
+      right: 0
+    }
+
+    .sf-br::after {
+      width: 2px;
+      height: 100%;
+      bottom: 0;
+      right: 0
+    }
+
+    .sf-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--neon), transparent);
+      box-shadow: 0 0 8px var(--neon);
+      animation: sfScan 2s ease-in-out infinite;
+      will-change: top;
+    }
+
+    @keyframes sfScan {
+      0% {
+        top: 0;
+        opacity: 0
+      }
+
+      5% {
+        opacity: 1
+      }
+
+      95% {
+        opacity: 1
+      }
+
+      100% {
+        top: 100%;
+        opacity: 0
+      }
+    }
+
+    /* ── Tap hint ── */
+    #taphint {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(.88);
+      z-index: 700;
+      pointer-events: none;
+      background: var(--glass2);
+      border: 1px solid var(--bd2);
+      backdrop-filter: blur(28px);
+      border-radius: 6px;
+      padding: 20px 24px;
+      text-align: center;
+      max-width: min(280px, 80vw);
+      box-shadow: 0 0 60px rgba(0, 255, 255, .08);
+      opacity: 0
+    }
+
+    .th-icon {
+      font-size: 2rem;
+      display: block;
+      margin-bottom: 8px
+    }
+
+    .th-title {
+      font-family: var(--fh);
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 6px
+    }
+
+    .th-body {
+      font-size: .8rem;
+      line-height: 1.65;
+      color: var(--t2)
+    }
+
+    /* ── Panel ── */
+    #panel {
+      position: fixed;
+      inset: 0;
+      z-index: 600;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      pointer-events: none;
+      transform: translateZ(0);
+      /* own compositing layer */
+    }
+
+    #panel.open {
+      pointer-events: all
+    }
+
+    #pveil {
+      position: absolute;
+      inset: 0;
+      transition: background .4s, backdrop-filter .4s
+    }
+
+    #panel.open #pveil {
+      background: rgba(0, 4, 14, .7);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px)
+    }
+
+    .psheet {
+      position: relative;
+      z-index: 1;
+      width: min(560px, 100vw);
+      background: var(--glass2);
+      border: 1px solid var(--bd);
+      border-bottom: none;
+      backdrop-filter: blur(40px);
+      -webkit-backdrop-filter: blur(40px);
+      border-radius: 18px 18px 0 0;
+      overflow: hidden;
+      transform: translateY(102%);
+      box-shadow: 0 -40px 100px rgba(0, 0, 0, .85);
+      max-height: 88vh;
+      display: flex;
+      flex-direction: column;
+      will-change: transform;
+      /* GPU-accelerated sheet slide */
+    }
+
+    .p-accent {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      transition: background .4s
+    }
+
+    .p-handle {
+      width: 36px;
+      height: 3px;
+      background: rgba(255, 255, 255, .1);
+      border-radius: 99px;
+      margin: 12px auto 0;
+      flex-shrink: 0;
+      cursor: grab;
+      touch-action: none
+    }
+
+    .p-hero {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 18px 10px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--bd)
+    }
+
+    .p-cover {
+      width: 66px;
+      height: 90px;
+      border-radius: 6px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+      border: 1px solid rgba(255, 255, 255, .08);
+      position: relative;
+      overflow: hidden
+    }
+
+    .p-cover::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255, 255, 255, .08), transparent 55%)
+    }
+
+    .p-num {
+      font-family: var(--fm);
+      font-size: .48rem;
+      letter-spacing: .28em;
+      text-transform: uppercase;
+      margin-bottom: 3px
+    }
+
+    .p-title {
+      font-family: var(--fh);
+      font-size: clamp(1.05rem, 4.5vw, 1.4rem);
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      line-height: 1.15;
+      margin-bottom: 4px
+    }
+
+    .p-author {
+      font-size: .78rem;
+      color: var(--t2);
+      margin-bottom: 7px;
+      font-weight: 500
+    }
+
+    .p-stars {
+      display: flex;
+      gap: 3px
+    }
+
+    .p-star {
+      font-size: .9rem;
+      opacity: .15;
+      transition: opacity .2s, transform .2s;
+      color: var(--gold)
+    }
+
+    .p-star.lit {
+      opacity: 1
+    }
+
+    .p-star.pop {
+      animation: sPop .42s cubic-bezier(.34, 1.56, .64, 1)
+    }
+
+    @keyframes sPop {
+      0% {
+        transform: scale(.1)
+      }
+
+      60% {
+        transform: scale(1.7)
+      }
+
+      100% {
+        transform: scale(1)
+      }
+    }
+
+    .p-tabs {
+      display: flex;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--bd);
+      flex-shrink: 0
+    }
+
+    .tbtn {
+      flex: 1;
+      padding: 10px 4px;
+      font-family: var(--fm);
+      font-size: .52rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--t3);
+      background: none;
+      border: none;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color .2s, border-color .2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px
+    }
+
+    .tbtn .ti {
+      font-size: .9rem
+    }
+
+    .tbtn.active {
+      color: var(--neon);
+      border-bottom-color: var(--neon)
+    }
+
+    .p-content {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      flex: 1;
+      min-height: 0;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0, 255, 255, .15) transparent
+    }
+
+    .p-content::-webkit-scrollbar {
+      width: 3px
+    }
+
+    .p-content::-webkit-scrollbar-thumb {
+      background: rgba(0, 255, 255, .15);
+      border-radius: 99px
+    }
+
+    .tpane {
+      display: none;
+      padding: 14px 18px 18px;
+      animation: fadeUp .28s ease
+    }
+
+    .tpane.active {
+      display: block
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    .p-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 12px
+    }
+
+    .p-tag {
+      font-family: var(--fm);
+      font-size: .5rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      padding: 3px 9px;
+      border-radius: 2px;
+      border: 1px solid;
+      opacity: .82
+    }
+
+    .p-summary {
+      font-size: .88rem;
+      line-height: 1.78;
+      color: var(--t2);
+      margin-bottom: 14px
+    }
+
+    .prog-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 5px
+    }
+
+    .prog-label {
+      font-family: var(--fm);
+      font-size: .52rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--t3)
+    }
+
+    .prog-pct {
+      font-family: var(--fm);
+      font-size: .68rem;
+      font-weight: 600
+    }
+
+    .prog-bar {
+      height: 4px;
+      background: rgba(255, 255, 255, .05);
+      border-radius: 99px;
+      overflow: hidden
+    }
+
+    .prog-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 1.4s cubic-bezier(.4, 0, .2, 1);
+      position: relative;
+      will-change: width;
+    }
+
+    .prog-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent 60%, rgba(255, 255, 255, .3))
+    }
+
+    .d-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+      margin-bottom: 14px
+    }
+
+    .d-cell {
+      background: rgba(255, 255, 255, .025);
+      border: 1px solid var(--bd);
+      border-radius: 5px;
+      padding: 10px 12px
+    }
+
+    .d-label {
+      font-family: var(--fm);
+      font-size: .47rem;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--t3);
+      margin-bottom: 3px
+    }
+
+    .d-val {
+      font-size: .9rem;
+      font-weight: 700;
+      font-family: var(--fh);
+      letter-spacing: .04em
+    }
+
+    .k-head {
+      font-family: var(--fm);
+      font-size: .5rem;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--t3);
+      margin-bottom: 8px
+    }
+
+    .k-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, .04)
+    }
+
+    .k-item:last-child {
+      border-bottom: none
+    }
+
+    .k-num {
+      font-family: var(--fm);
+      font-size: .6rem;
+      font-weight: 600;
+      min-width: 22px;
+      margin-top: 1px
+    }
+
+    .k-txt {
+      font-size: .82rem;
+      line-height: 1.6;
+      color: var(--t2)
+    }
+
+    .w-hero {
+      text-align: center;
+      padding: 4px 0 14px
+    }
+
+    .w-icon {
+      font-size: 2.8rem;
+      display: block;
+      margin-bottom: 8px
+    }
+
+    .w-title {
+      font-family: var(--fh);
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      margin-bottom: 5px
+    }
+
+    .w-sub {
+      font-size: .8rem;
+      color: var(--t2);
+      line-height: 1.65
+    }
+
+    .w-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px
+    }
+
+    .w-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background: rgba(255, 255, 255, .025);
+      border: 1px solid var(--bd);
+      border-radius: 6px;
+      padding: 12px;
+      transition: background .18s
+    }
+
+    .w-card:active {
+      background: rgba(255, 255, 255, .06)
+    }
+
+    .w-cico {
+      font-size: 1.2rem;
+      flex-shrink: 0;
+      margin-top: 1px
+    }
+
+    .w-ctitle {
+      font-family: var(--fh);
+      font-weight: 700;
+      font-size: .9rem;
+      letter-spacing: .04em;
+      margin-bottom: 2px;
+      text-transform: uppercase
+    }
+
+    .w-cdesc {
+      font-size: .78rem;
+      line-height: 1.58;
+      color: var(--t2)
+    }
+
+    .q-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 11px
+    }
+
+    .q-card {
+      background: rgba(255, 255, 255, .025);
+      border: 1px solid var(--bd);
+      border-radius: 6px;
+      padding: 14px 14px 11px;
+      position: relative;
+      overflow: hidden
+    }
+
+    .q-card::before {
+      content: '"';
+      position: absolute;
+      top: -12px;
+      left: 8px;
+      font-size: 5rem;
+      opacity: .06;
+      font-family: Georgia, serif;
+      pointer-events: none
+    }
+
+    .q-text {
+      font-size: .86rem;
+      line-height: 1.74;
+      color: var(--t1);
+      font-style: italic;
+      margin-bottom: 8px
+    }
+
+    .q-src {
+      font-family: var(--fm);
+      font-size: .5rem;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--t3)
+    }
+
+    .p-actions {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      padding: 10px 18px 16px;
+      border-top: 1px solid var(--bd);
+      flex-shrink: 0
+    }
+
+    .btn-next {
+      padding: 12px 14px;
+      border: 1px solid var(--bd2);
+      border-radius: 5px;
+      background: linear-gradient(135deg, rgba(0, 255, 255, .1), rgba(191, 95, 255, .07));
+      color: var(--neon);
+      font-family: var(--fm);
+      font-size: .58rem;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .18s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px
+    }
+
+    .btn-next:active {
+      transform: scale(.97);
+      background: rgba(0, 255, 255, .2)
+    }
+
+    .btn-close {
+      width: 46px;
+      border: 1px solid rgba(255, 45, 120, .22);
+      border-radius: 5px;
+      background: rgba(255, 45, 120, .07);
+      color: var(--hot);
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .18s
+    }
+
+    .btn-close:active {
+      transform: scale(.95)
+    }
+
+    /* ── Ripple ── */
+    .ripple {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9990;
+      transform: scale(0);
+      opacity: .7;
+      animation: ripOut .7s cubic-bezier(.4, 0, .2, 1) forwards;
+      will-change: transform, opacity;
+    }
+
+    @keyframes ripOut {
+      to {
+        transform: scale(1);
+        opacity: 0
+      }
+    }
+
+    #tap-flash {
+      position: fixed;
+      inset: 0;
+      z-index: 595;
+      pointer-events: none;
+      background: rgba(0, 255, 255, .03);
+      opacity: 0;
+      will-change: opacity;
+    }
+
+    #err {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9998;
+      background: rgba(255, 40, 80, .09);
+      border: 1px solid rgba(255, 40, 80, .3);
+      backdrop-filter: blur(14px);
+      border-radius: 6px;
+      padding: 12px 20px;
+      font-family: var(--fm);
+      font-size: .7rem;
+      color: #ff80a0;
+      text-align: center;
+      max-width: min(340px, 90vw);
+      display: none;
+      letter-spacing: .1em
+    }
+
+    #err.show {
+      display: block
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="ls">
+    <div class="ls-grid"></div>
+    <div class="ls-glow"></div>
+    <div class="ls-inner">
+      <div class="ls-chip" id="ls-chip">Augmented Reality</div>
+      <div class="ls-title" id="ls-title"><span class="l1">Book</span><span class="l2">Showcase</span></div>
+      <div class="ls-sub" id="ls-sub">AI & Science · MindAR · Three.js</div>
+      <div class="ls-spin" id="ls-spin"><span></span><span></span><span></span></div>
+      <div class="ls-bar" id="ls-bar">
+        <div class="ls-fill" id="ls-fill"></div>
+      </div>
+      <div class="ls-stat" id="ls-stat">Initializing…</div>
+    </div>
+  </div>
+
+  <div id="err"><span id="etxt"></span></div>
+  <div id="tap-flash"></div>
+  <div id="mindar-container"></div>
+
+  <div id="hud">
+    <div class="hlogo">AR Books<span class="hlogo-sub">AI & Science Edition</span></div>
+    <div id="hlive">
+      <div class="hlive-dot"></div>Scanning
+    </div>
+    <div class="hbooks">Books<strong>5</strong></div>
+  </div>
+
+  <div id="scan-ui">
+    <div class="scan-pill">
+      <div class="scan-dot"></div>
+      <div class="scan-txt">Point at <strong>Target Image</strong> to begin</div>
+    </div>
+  </div>
+
+  <div id="scan-frame">
+    <div class="sf sf-tl"></div>
+    <div class="sf sf-tr"></div>
+    <div class="sf sf-bl"></div>
+    <div class="sf sf-br"></div>
+    <div class="sf-line"></div>
+  </div>
+
+  <div id="taphint">
+    <span class="th-icon">👆</span>
+    <div class="th-title">Tap Any Card</div>
+    <div class="th-body">Each floating card is interactive — tap to open full details, key concepts, insights and more.
+    </div>
+  </div>
+
+  <div id="panel">
+    <div id="pveil"></div>
+    <div class="psheet" id="psheet">
+      <div class="p-accent" id="p-accent"></div>
+      <div class="p-handle" id="p-handle"></div>
+      <div class="p-hero">
+        <div class="p-cover" id="p-cover">📚</div>
+        <div style="flex:1;min-width:0">
+          <div class="p-num" id="p-num">Book 1 of 5</div>
+          <div class="p-title" id="p-title">—</div>
+          <div class="p-author" id="p-author">—</div>
+          <div class="p-stars" id="p-stars">
+            <span class="p-star">★</span><span class="p-star">★</span>
+            <span class="p-star">★</span><span class="p-star">★</span><span class="p-star">★</span>
+          </div>
+        </div>
+      </div>
+      <div class="p-tabs">
+        <button class="tbtn active" data-tab="overview"><span class="ti">📖</span>Overview</button>
+        <button class="tbtn" data-tab="details"><span class="ti">🔍</span>Details</button>
+        <button class="tbtn" data-tab="why"><span class="ti">💡</span>Why Read</button>
+        <button class="tbtn" data-tab="insights"><span class="ti">✨</span>Insights</button>
+      </div>
+      <div class="p-content">
+        <div class="tpane active" id="tab-overview">
+          <div class="p-tags" id="p-tags"></div>
+          <div class="p-summary" id="p-summary">—</div>
+          <div class="prog-row">
+            <span class="prog-label">Community Read %</span>
+            <span class="prog-pct" id="p-pct">0%</span>
+          </div>
+          <div class="prog-bar">
+            <div class="prog-fill" id="p-fill"></div>
+          </div>
+        </div>
+        <div class="tpane" id="tab-details">
+          <div class="d-grid" id="d-grid"></div>
+          <div class="k-head">Key Concepts</div>
+          <div id="k-list"></div>
+        </div>
+        <div class="tpane" id="tab-why">
+          <div class="w-hero">
+            <span class="w-icon" id="w-icon">📚</span>
+            <div class="w-title">Why Read This?</div>
+            <div class="w-sub" id="w-sub">—</div>
+          </div>
+          <div class="w-cards" id="w-cards"></div>
+        </div>
+        <div class="tpane" id="tab-insights">
+          <div class="q-wrap" id="q-wrap"></div>
+        </div>
+      </div>
+      <div class="p-actions">
+        <button class="btn-next" id="btn-next">Next Book →</button>
+        <button class="btn-close" id="btn-close">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { MindARThree } from 'mindar-image-three';
+
+    /* ─────────────────────────────────────────
+       BOOKS DATA
+    ───────────────────────────────────────── */
+    const BOOKS_DATA = [
+      {
+        title: "Prediction Machines", author: "Agrawal, Gans & Goldfarb",
+        summary: "AI fundamentally reduces the cost of prediction, transforming every business where uncertainty drives decisions. A framework for deciding what to automate, augment, and where human judgment stays irreplaceable.",
+        color: "#00ffff", glyph: "⚡", rating: 4,
+        tags: ["AI Strategy", "Business", "Economics"], tagC: ["#00ffff", "#bf5fff", "#ffd600"],
+        details: { Pages: "272", Year: "2018", Level: "Intermediate", Publisher: "HBR Press" },
+        concepts: ["Prediction is an input to decisions, not the end goal", "As AI lowers prediction cost, human judgment grows more valuable", "Every industry disrupted by cheap, accurate prediction", "Redesigning decision workflows is the real AI opportunity"],
+        whySub: "A practical framework for AI strategy decisions in any organization.",
+        whyCards: [{ icon: "🎯", title: "Strategic Clarity", desc: "Understand where AI creates competitive advantage in your specific industry." }, { icon: "💼", title: "Business Framework", desc: "Evaluate which processes to automate vs. augment with a clear mental model." }, { icon: "🔮", title: "Future Ready", desc: "Prepare before AI disruption reaches your sector." }],
+        quotes: ["The machine predicts; you decide. AI makes prediction cheap, judgment remains precious.", "Think of AI as lowering the cost of prediction the way computers lowered the cost of arithmetic.", "The right question: how will cheap prediction change the decisions in my job?"],
+        progress: 72
+      },
+      {
+        title: "The Alignment Problem", author: "Brian Christian",
+        summary: "What happens when AI systems don't do what we actually want? A deeply reported investigation revealing why aligning AI with human values is the defining challenge of our era.",
+        color: "#ff2d78", glyph: "🧬", rating: 5,
+        tags: ["AI Safety", "Philosophy", "Ethics"], tagC: ["#ff2d78", "#bf5fff", "#39ff14"],
+        details: { Pages: "480", Year: "2020", Level: "Intermediate", Publisher: "W. W. Norton" },
+        concepts: ["Reward hacking: AI optimizes proxies, not our true intent", "Value alignment is harder than any technical ML problem", "Interpretability: can we understand what neural nets learn?", "Distributional shift: models break when the world changes"],
+        whySub: "Essential reading for anyone building or deploying AI systems in the real world.",
+        whyCards: [{ icon: "🔍", title: "Deep Reporting", desc: "Hundreds of interviews with leading ML researchers — documented reality." }, { icon: "⚠️", title: "Real Stakes", desc: "Concrete examples of AI systems causing harm through misalignment." }, { icon: "🛠️", title: "Practitioner Focus", desc: "Directly applicable to engineers building production AI systems." }],
+        quotes: ["The problem: AI is too literal, doing exactly what we said instead of what we meant.", "Train a system to maximize reward, and you'd better be sure the reward captures everything.", "Interpretability is not a luxury — it's the foundation of trust."],
+        progress: 58
+      },
+      {
+        title: "A Brief History of Time", author: "Stephen Hawking",
+        summary: "From the Big Bang to black holes, Hawking distils the most profound ideas in cosmology for the general reader. A journey through space, time, and the fundamental nature of reality — over 25 million copies sold.",
+        color: "#39ff14", glyph: "🌌", rating: 5,
+        tags: ["Cosmology", "Physics", "Science"], tagC: ["#39ff14", "#00ffff", "#ffd600"],
+        details: { Pages: "212", Year: "1988", Level: "Beginner", Publisher: "Bantam Books" },
+        concepts: ["The Big Bang as origin of both space and time", "Black holes emit Hawking radiation and eventually evaporate", "The arrow of time links to the second law of thermodynamics", "A unified theory may require quantum gravity"],
+        whySub: "The book that made the deepest physics accessible to everyone — still unmatched after 35 years.",
+        whyCards: [{ icon: "🌠", title: "Wonder at Scale", desc: "Develops genuine awe for the universe's scale and underlying laws." }, { icon: "🧠", title: "Real Intuition", desc: "Builds intuition for relativity and quantum mechanics without equations." }, { icon: "📖", title: "Cultural Foundation", desc: "Referenced in every physics conversation — essential scientific literacy." }],
+        quotes: ["What is it that breathes fire into the equations and makes a universe for them to describe?", "The whole history of science: events do not happen in an arbitrary manner.", "If we find the answer, it would be the ultimate triumph of human reason."],
+        progress: 84
+      },
+      {
+        title: "Co-Intelligence", author: "Ethan Mollick",
+        summary: "AI works best when treated as a collaborator, not a tool. A Wharton professor running live experiments shows how to think with AI to become dramatically more creative and productive right now.",
+        color: "#ffd600", glyph: "🤝", rating: 5,
+        tags: ["Productivity", "LLMs", "Work", "2024"], tagC: ["#ffd600", "#00ffff", "#ff2d78", "#bf5fff"],
+        details: { Pages: "256", Year: "2024", Level: "Beginner", Publisher: "Portfolio" },
+        concepts: ["Treat AI as an always-on expert colleague, not a search engine", "The jagged frontier: AI excels unpredictably across tasks", "Prompt quality determines output quality more than model power", "The biggest risk is not using AI, not over-relying on it"],
+        whySub: "Multiply your output by collaborating with AI using techniques you can apply today.",
+        whyCards: [{ icon: "🧪", title: "Hands-On Science", desc: "Backed by live classroom experiments with thousands of real students." }, { icon: "🚀", title: "Immediate Value", desc: "Techniques you can apply in your workflow from day one." }, { icon: "🎨", title: "Boosts Creativity", desc: "Empirical evidence that AI amplifies human creative thinking." }],
+        quotes: ["The best way to use AI: pretend it's a brilliant friend who gives you real information.", "Think of AI as a co-worker who never sleeps, never gets bored, and knows a lot.", "The jagged frontier means AI will surprise you both with what it can and cannot do."],
+        progress: 91
+      },
+      {
+        title: "The Code Breaker", author: "Walter Isaacson",
+        summary: "The story of Jennifer Doudna, CRISPR, and the race to rewrite the code of life. The same sweeping narrative Isaacson brought to Jobs and Einstein — raising profound questions about who controls our genetic future.",
+        color: "#bf5fff", glyph: "🧫", rating: 5,
+        tags: ["Biology", "CRISPR", "Ethics", "Science"], tagC: ["#bf5fff", "#39ff14", "#ffd600", "#ff2d78"],
+        details: { Pages: "560", Year: "2021", Level: "Intermediate", Publisher: "Simon & Schuster" },
+        concepts: ["CRISPR-Cas9: precise molecular scissors to edit any DNA", "Gene drives could eliminate disease or entire species", "Patent battles reveal commercialization of academic science", "Who controls gene editing controls humanity's future"],
+        whySub: "The defining biotech story of our era told by the world's best science narrator.",
+        whyCards: [{ icon: "🏆", title: "Nobel Prize Story", desc: "Front-row account of the discovery that won the 2020 Nobel Prize in Chemistry." }, { icon: "⚖️", title: "Ethical Depth", desc: "Grapples seriously with the moral implications of designing human life." }, { icon: "🔬", title: "Science Made Vivid", desc: "Makes cutting-edge molecular biology graspable for non-scientists." }],
+        quotes: ["Biology has become the new computer science, and CRISPR is the new programming language.", "Just because we can edit the code of life — should we?", "Curiosity-driven basic research is still the engine of civilization-changing breakthroughs."],
+        progress: 37
+      }
+    ];
+
+    /* ─────────────────────────────────────────
+       CONSTANTS  (tweaked for smoothness)
+    ───────────────────────────────────────── */
+    const C = {
+      CARD_WIDTH: 0.30,
+      CARD_HEIGHT: 0.17,
+      CAROUSEL_RADIUS: 0.44,
+      CARD_TILT: -0.14,
+      CARD_BASE_Y: 0.03,
+
+      /* ── Particle counts reduced — big perf win on mobile ── */
+      PARTICLE_COUNT_LARGE: 50,
+      PARTICLE_COUNT_SMALL: 30,
+      PARTICLE_SIZE_LARGE: 0.005,
+      PARTICLE_SIZE_SMALL: 0.0038,
+
+      RING_RADII: [0.36, 0.38, 0.48],
+      ORB_RADIUS: 0.014,
+      ORB_RING_RADIUS: 0.026,
+
+      /* ── Texture resolution lowered → less VRAM, less upload stall ── */
+      TEXTURE_WIDTH: 1024,
+      TEXTURE_HEIGHT: 576,
+
+      TARGET_LOST_TIMEOUT: 600,
+      TAP_DEBOUNCE: 350,
+      HINT_DELAY: 1400,
+      HINT_DURATION: 3500,
+      PANEL_DRAG_THRESHOLD: 60,
+      PANEL_DRAG_FRICTION: 0.6,
+      MAX_ANISOTROPY: 4,          /* was 16 — lower = less GPU stall */
+      DEPTH_FADE_NEAR: 1.5,
+      DEPTH_FADE_FAR: 3.5,
+      PARALLAX_FACTOR: 0.04,      /* reduced to calm movement */
+      GLOW_INTENSITY_BASE: 0.18,
+      GLOW_INTENSITY_HOVER: 0.35,
+      IDLE_ROTATE_SPEED: 0.018,
+      IDLE_ROTATE_THRESHOLD: 5000,
+
+      /* ── Smooth exponential lerp for visibility ── */
+      VIS_LERP_IN: 0.07,
+      VIS_LERP_OUT: 0.05,
+
+      /* ── Carousel rotation speed ── */
+      CAROUSEL_SPEED: 0.10,
+    };
+
+    /* ─────────────────────────────────────────
+       DATA MANAGER
+    ───────────────────────────────────────── */
+    class DataManager {
+      constructor() { this.books = BOOKS_DATA; }
+      getBooks() { return this.books; }
+    }
+
+    /* ─────────────────────────────────────────
+       CARD FACTORY
+       Key fix: textures are uploaded async via
+       createImageBitmap so the main thread (and
+       hence the render loop) never stalls on a
+       large canvas → GPU upload.
+    ───────────────────────────────────────── */
+    class CardFactory {
+      constructor(renderer, books) {
+        this.renderer = renderer;
+        this.books = books;
+        this.textureCache = new Map();
+        /* Shared geometry — no per-card geometry allocation */
+        this._planeGeo = new THREE.PlaneGeometry(C.CARD_WIDTH, C.CARD_HEIGHT);
+        this._glowGeo = new THREE.PlaneGeometry(C.CARD_WIDTH + 0.022, C.CARD_HEIGHT + 0.022);
+      }
+
+      _expandHex(color) {
+        return (color.length === 4)
+          ? '#' + color[1].repeat(2) + color[2].repeat(2) + color[3].repeat(2)
+          : color;
+      }
+
+      _drawTexture(book) {
+        const canvas = document.createElement('canvas');
+        canvas.width = C.TEXTURE_WIDTH;
+        canvas.height = C.TEXTURE_HEIGHT;
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        const color = this._expandHex(book.color);
+
+        /* Background */
+        ctx.fillStyle = '#040c1a';
+        ctx.beginPath(); ctx.roundRect(0, 0, W, H, 28); ctx.fill();
+
+        /* Color wash */
+        const wash = ctx.createRadialGradient(W * .25, H * .25, 0, W * .5, H * .5, W * .75);
+        wash.addColorStop(0, color + '22'); wash.addColorStop(1, 'transparent');
+        ctx.fillStyle = wash;
+        ctx.beginPath(); ctx.roundRect(0, 0, W, H, 28); ctx.fill();
+
+        /* Scanlines — fewer passes */
+        for (let y = 0; y < H; y += 8) {
+          ctx.fillStyle = 'rgba(0,0,0,.045)'; ctx.fillRect(0, y, W, 3);
+        }
+
+        /* Border glow — 2 passes instead of 4 */
+        for (let i = 0; i < 2; i++) {
+          ctx.strokeStyle = color; ctx.lineWidth = 7 - i * 3;
+          ctx.globalAlpha = 0.4 - i * 0.1;
+          ctx.shadowColor = color; ctx.shadowBlur = 60 - i * 20;
+          ctx.beginPath(); ctx.roundRect(4, 4, W - 8, H - 8, 26); ctx.stroke();
+        }
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+
+        /* Inner border */
+        ctx.strokeStyle = color + '30'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.roundRect(10, 10, W - 20, H - 20, 24); ctx.stroke();
+
+        /* Top bar */
+        const tbar = ctx.createLinearGradient(0, 0, W * .9, 0);
+        tbar.addColorStop(0, color + 'ff'); tbar.addColorStop(0.45, color + 'cc'); tbar.addColorStop(1, 'transparent');
+        ctx.fillStyle = tbar; ctx.shadowColor = color; ctx.shadowBlur = 16;
+        ctx.fillRect(28, 26, W - 56, 4); ctx.shadowBlur = 0;
+
+        /* Corner marks */
+        const cm = 26, ct = 26;
+        [[ct, ct], [W - ct, ct], [ct, H - ct], [W - ct, H - ct]].forEach(([x, y], qi) => {
+          ctx.strokeStyle = color + '60'; ctx.lineWidth = 1.8;
+          const dx = (qi % 2 === 0) ? 1 : -1, dy = (qi < 2) ? 1 : -1;
+          ctx.beginPath();
+          ctx.moveTo(x, y + dy * cm); ctx.lineTo(x, y); ctx.lineTo(x + dx * cm, y);
+          ctx.stroke();
+        });
+
+        /* Glyph */
+        const glyphSize = Math.round(H * 0.32);
+        ctx.font = `${glyphSize}px serif`;
+        ctx.textAlign = 'left'; ctx.globalAlpha = 0.9;
+        ctx.shadowColor = color; ctx.shadowBlur = 24;
+        ctx.fillStyle = '#fff';
+        ctx.fillText(book.glyph, 30, Math.round(H * 0.38));
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+
+        /* Title */
+        ctx.fillStyle = '#eef4ff'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+        ctx.shadowColor = color; ctx.shadowBlur = 10;
+        const words = book.title.split(' ');
+        const mid = Math.ceil(words.length / 2);
+        const l1 = words.slice(0, mid).join(' '), l2 = words.slice(mid).join(' ');
+        const maxW = W - Math.round(W * 0.32);
+        if (l2 && l2.length > 1) {
+          let fs = Math.round(H * 0.14);
+          ctx.font = `900 ${fs}px 'Rajdhani',sans-serif`;
+          while ((ctx.measureText(l1).width > maxW || ctx.measureText(l2).width > maxW) && fs > 28) {
+            fs -= 2; ctx.font = `900 ${fs}px 'Rajdhani',sans-serif`;
+          }
+          ctx.fillText(l1, Math.round(W * 0.22), Math.round(H * 0.36));
+          ctx.fillText(l2, Math.round(W * 0.22), Math.round(H * 0.36) + fs + 6);
+        } else {
+          let fs = Math.round(H * 0.14);
+          ctx.font = `900 ${fs}px 'Rajdhani',sans-serif`;
+          while (ctx.measureText(book.title).width > maxW && fs > 28) {
+            fs -= 2; ctx.font = `900 ${fs}px 'Rajdhani',sans-serif`;
+          }
+          ctx.fillText(book.title, Math.round(W * 0.22), Math.round(H * 0.44));
+        }
+        ctx.shadowBlur = 0;
+
+        /* Divider */
+        const div = ctx.createLinearGradient(0, 0, W, 0);
+        div.addColorStop(0, color + 'cc'); div.addColorStop(0.35, color + '66'); div.addColorStop(1, 'transparent');
+        ctx.fillStyle = div; ctx.shadowColor = color; ctx.shadowBlur = 8;
+        ctx.fillRect(28, Math.round(H * 0.56), W - 56, 2); ctx.shadowBlur = 0;
+
+        /* Author */
+        ctx.font = `600 ${Math.round(H * 0.075)}px Arial`;
+        ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 10;
+        ctx.fillText('— ' + book.author.split(',')[0], 28, Math.round(H * 0.68));
+        ctx.shadowBlur = 0;
+
+        /* Tags */
+        let tx2 = 28;
+        ctx.font = `500 ${Math.round(H * 0.048)}px monospace`;
+        ctx.fillStyle = color + '88';
+        book.tags.slice(0, 3).forEach(tag => {
+          ctx.fillText('#' + tag, tx2, Math.round(H * 0.79));
+          tx2 += ctx.measureText('#' + tag).width + 16;
+        });
+
+        /* CTA */
+        ctx.font = `500 ${Math.round(H * 0.05)}px Arial`;
+        ctx.fillStyle = 'rgba(160,200,255,.28)';
+        ctx.fillText('[ TAP TO EXPLORE FULL DETAILS ]', 28, Math.round(H * 0.9));
+
+        /* Bottom rule */
+        const bbar = ctx.createLinearGradient(0, 0, W, 0);
+        bbar.addColorStop(0, 'transparent'); bbar.addColorStop(0.5, color + '44'); bbar.addColorStop(1, 'transparent');
+        ctx.fillStyle = bbar;
+        ctx.fillRect(28, H - 18, W - 56, 2);
+
+        return canvas;
+      }
+
+      /* Create & cache texture. Each texture is created once. */
+      createTexture(book) {
+        if (this.textureCache.has(book.title)) return this.textureCache.get(book.title);
+
+        const canvas = this._drawTexture(book);
+        const texture = new THREE.CanvasTexture(canvas);
+
+        /* Lower anisotropy to avoid GPU stalls */
+        texture.anisotropy = Math.min(
+          this.renderer.capabilities.getMaxAnisotropy(),
+          C.MAX_ANISOTROPY
+        );
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.generateMipmaps = true;
+        texture.needsUpdate = true;
+
+        this.textureCache.set(book.title, texture);
+        return texture;
+      }
+
+      createCard(book, index, carouselGroup) {
+        const angle = (index / this.books.length) * Math.PI * 2;
+        const x = Math.cos(angle) * C.CAROUSEL_RADIUS;
+        const z = Math.sin(angle) * C.CAROUSEL_RADIUS;
+
+        const texture = this.createTexture(book);
+        const material = new THREE.MeshBasicMaterial({
+          map: texture, side: THREE.DoubleSide,
+          transparent: true, opacity: 0, depthWrite: false,
+          alphaTest: 0.01,
+        });
+        const mesh = new THREE.Mesh(this._planeGeo, material);
+        mesh.position.set(x, C.CARD_BASE_Y, z);
+        mesh.rotation.x = C.CARD_TILT;
+        mesh.userData = {
+          book, index,
+          baseY: C.CARD_BASE_Y,
+          phase: index * (Math.PI * 2 / this.books.length),
+          entering: false,
+          glowIntensity: C.GLOW_INTENSITY_BASE,
+          targetOpacity: 0,
+        };
+        carouselGroup.add(mesh);
+
+        const glowMaterial = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(book.color),
+          transparent: true, opacity: 0,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        const glow = new THREE.Mesh(this._glowGeo, glowMaterial);
+        glow.position.set(x, C.CARD_BASE_Y, z);
+        glow.rotation.x = C.CARD_TILT;
+        carouselGroup.add(glow);
+        mesh.userData.glow = glow;
+
+        return mesh;
+      }
+    }
+
+    /* ─────────────────────────────────────────
+       EFFECTS MANAGER
+       Rings & particles use AdditiveBlending so
+       they composite without extra draw calls.
+    ───────────────────────────────────────── */
+    class EffectsManager {
+      constructor(scene, rootGroup) {
+        this.scene = scene;
+        this.rootGroup = rootGroup;
+        this.clouds = [];
+        this.rings = [];
+        this.orb = null;
+        this.orbRing = null;
+        this._initEffects();
+      }
+
+      _initEffects() {
+        this.clouds = [
+          this._createCloud(C.PARTICLE_COUNT_LARGE, 0.52, ['#00ffff', '#bf5fff'], C.PARTICLE_SIZE_LARGE),
+          this._createCloud(C.PARTICLE_COUNT_SMALL, 0.28, ['#ffd600', '#ff2d78'], C.PARTICLE_SIZE_SMALL),
+        ];
+        this.clouds.forEach(c => this.rootGroup.add(c));
+
+        this.rings = [
+          this._createRing(C.RING_RADII[0], '#00ffff'),
+          this._createRing(C.RING_RADII[1], '#bf5fff'),
+          this._createRing(C.RING_RADII[2], '#ffd600'),
+        ];
+        this.rings[1].rotation.z = Math.PI / 4;
+        this.rings[2].rotation.x = Math.PI / 3;
+        this.rings.forEach(r => this.rootGroup.add(r));
+
+        const orbMat = new THREE.MeshBasicMaterial({
+          color: 0x00ffff, transparent: true, opacity: 0,
+          blending: THREE.AdditiveBlending,
+        });
+        this.orb = new THREE.Mesh(new THREE.SphereGeometry(C.ORB_RADIUS, 10, 10), orbMat);
+        this.orb.position.y = 0.02;
+        this.rootGroup.add(this.orb);
+
+        const orbRingMat = new THREE.MeshBasicMaterial({
+          color: 0x00ffff, transparent: true, opacity: 0,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        this.orbRing = new THREE.Mesh(new THREE.TorusGeometry(C.ORB_RING_RADIUS, 0.0015, 6, 28), orbRingMat);
+        this.orbRing.rotation.x = Math.PI / 2;
+        this.orbRing.position.y = 0.02;
+        this.rootGroup.add(this.orbRing);
+
+        this.scene.add(new THREE.AmbientLight(0x0a1830, 2.5));
+        const pl1 = new THREE.PointLight(0x00ffff, 4, 5); pl1.position.set(0.7, 0.9, 0.6); this.scene.add(pl1);
+        const pl2 = new THREE.PointLight(0xff2d78, 2.5, 4); pl2.position.set(-0.6, -0.4, 0.4); this.scene.add(pl2);
+        const pl3 = new THREE.PointLight(0xffd600, 1.8, 3); pl3.position.set(0, -0.7, -0.5); this.scene.add(pl3);
+      }
+
+      _createCloud(count, radius, colors, size) {
+        const geo = new THREE.BufferGeometry();
+        const pos = new Float32Array(count * 3);
+        const col = new Float32Array(count * 3);
+        const palette = colors.map(h => new THREE.Color(h));
+        for (let i = 0; i < count; i++) {
+          const r = radius * (0.4 + Math.random() * 0.6);
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.random() * Math.PI * 2;
+          pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+          pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+          pos[i * 3 + 2] = r * Math.cos(phi);
+          const c = palette[i % palette.length];
+          col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+        }
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+        return new THREE.Points(geo, new THREE.PointsMaterial({
+          size, vertexColors: true, transparent: true, opacity: 0,
+          sizeAttenuation: true, blending: THREE.AdditiveBlending, depthWrite: false,
+        }));
+      }
+
+      _createRing(radius, color) {
+        const geo = new THREE.TorusGeometry(radius, 0.0016, 4, 52);
+        const mat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(color), transparent: true, opacity: 0,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        const m = new THREE.Mesh(geo, mat);
+        m.rotation.x = Math.PI / 2;
+        return m;
+      }
+
+      /* Called once per frame — all ops are cheap math */
+      animate(t, vis) {
+        this.clouds[0].rotation.y = t * 0.045 + Math.sin(t * 0.09) * 0.018;
+        this.clouds[0].rotation.x = Math.sin(t * 0.08) * 0.055;
+        this.clouds[1].rotation.y = -t * 0.065 + Math.cos(t * 0.07) * 0.012;
+        this.clouds[1].rotation.z = Math.cos(t * 0.11) * 0.04;
+        this.clouds[0].material.opacity = vis * 0.45;
+        this.clouds[1].material.opacity = vis * 0.35;
+
+        this.rings[0].rotation.z = t * 0.65;
+        this.rings[1].rotation.y = t * 0.42;
+        this.rings[2].rotation.x = Math.PI / 3 + t * 0.24;
+        this.rings[0].material.opacity = vis * 0.28;
+        this.rings[1].material.opacity = vis * 0.18;
+        this.rings[2].material.opacity = vis * 0.14;
+
+        this.orb.material.opacity = vis * (0.48 + 0.26 * Math.sin(t * 2.5));
+        this.orb.scale.setScalar(1 + 0.14 * Math.sin(t * 2.0));
+        this.orbRing.material.opacity = vis * 0.38;
+        this.orbRing.rotation.z = t * 1.2;
+      }
+    }
+
+    /* ─────────────────────────────────────────
+       SCENE MANAGER
+       Key fixes:
+       1. setAnimationLoop instead of rAF —
+          syncs to display rate automatically.
+       2. Smooth visibility lerp with separate
+          in/out speeds (no pop on target lost).
+       3. lookAt called once per card — no extra
+          quaternion math inside the tight loop.
+       4. Opacity is smoothly lerped, not snapped.
+    ───────────────────────────────────────── */
+    class SceneManager {
+      constructor(dataManager, uiManager) {
+        this.dm = dataManager;
+        this.ui = uiManager;
+        this.mindarThree = null;
+        this.renderer = null;
+        this.scene = null;
+        this.camera = null;
+        this.anchor = null;
+        this.rootGroup = null;
+        this.carouselGroup = null;
+        this.cardFactory = null;
+        this.fx = null;
+        this.cardMeshes = [];
+        this.raycaster = new THREE.Raycaster();
+        this.pointer = new THREE.Vector2();
+
+        /* Smooth visibility — separate in/out rates */
+        this.visibility = 0;
+        this.targetVis = 0;
+
+        this.tracking = false;
+        this.firstDetect = true;
+        this.lostTimer = null;
+
+        /* Clock for time uniform */
+        this.clock = new THREE.Clock();
+
+        /* Idle rotation */
+        this.lastInteraction = Date.now();
+        this.idleOffset = 0;
+
+        this._init();
+      }
+
+      async _init() {
+        this.ui.setLoadingStatus('Requesting camera…', 18);
+        try {
+          this.mindarThree = new MindARThree({
+            container: document.getElementById('mindar-container'),
+            imageTargetSrc: 'assets/targets.mind',
+            maxTrack: 1,
+            uiLoading: 'no', uiScanning: 'no', uiError: 'no',
+            filterMinCF: 0.0001,
+            filterBeta: 10000,
+            missTolerance: 20,
+            warmupTolerance: 5,
+          });
+
+          const { renderer, scene, camera } = this.mindarThree;
+          this.renderer = renderer;
+          this.scene = scene;
+          this.camera = camera;
+
+          /* Renderer quality settings */
+          renderer.toneMapping = THREE.ACESFilmicToneMapping;
+          renderer.toneMappingExposure = 1.1;
+          renderer.outputColorSpace = THREE.SRGBColorSpace;
+          /* Limit pixel ratio — huge perf win on high-DPI mobiles */
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+          /* Disable shadow maps (not needed) */
+          renderer.shadowMap.enabled = false;
+          /* Antialias is set in MindAR constructor internally; we just stop extra work */
+
+          this.ui.setLoadingStatus('Building AR scene…', 35);
+
+          this.anchor = this.mindarThree.addAnchor(0);
+          this.rootGroup = new THREE.Group();
+          this.carouselGroup = new THREE.Group();
+          this.rootGroup.add(this.carouselGroup);
+          this.anchor.group.add(this.rootGroup);
+
+          this.cardFactory = new CardFactory(renderer, this.dm.getBooks());
+          this.fx = new EffectsManager(scene, this.rootGroup);
+
+          this.ui.setLoadingStatus('Rendering book cards…', 58);
+
+          this.dm.getBooks().forEach((book, i) => {
+            this.cardMeshes.push(this.cardFactory.createCard(book, i, this.carouselGroup));
+          });
+
+          this.ui.setLoadingStatus('Camera warming up…', 75);
+          this._setupHandlers();
+
+          await this.mindarThree.start();
+
+          this.ui.setLoadingStatus('Ready! Point at target', 100);
+          this.ui.hideLoadingScreen();
+
+          /* Use setAnimationLoop for XR-compatible, vsync-locked rendering */
+          renderer.setAnimationLoop(() => this._frame());
+
+        } catch (err) {
+          console.error('SceneManager init failed:', err);
+          this.ui.showError('Camera error: Allow camera access and reload.');
+        }
+      }
+
+      _setupHandlers() {
+        this.anchor.onTargetFound = () => {
+          if (this.lostTimer) { clearTimeout(this.lostTimer); this.lostTimer = null; }
+          this.tracking = true;
+          this.targetVis = 1;
+          this.ui.updateHUD('Tracking');
+          this.ui.hideScanUI();
+          if (this.firstDetect) {
+            this.firstDetect = false;
+            this.cardMeshes.forEach((mesh, i) => {
+              mesh.scale.set(0.1, 0.1, 0.1);
+              mesh.userData.entering = true;
+              mesh.userData.entryDelay = i * 0.1;
+              mesh.userData.entryStart = null;
+            });
+            setTimeout(() => this.ui.showTapHint(), C.HINT_DELAY);
+          }
+        };
+
+        this.anchor.onTargetLost = () => {
+          this.lostTimer = setTimeout(() => {
+            this.tracking = false;
+            this.targetVis = 0;
+            this.ui.updateHUD('Scanning');
+            this.ui.showScanUI();
+            if (this.ui.isPanelOpen()) this.ui.closePanel();
+          }, C.TARGET_LOST_TIMEOUT);
+        };
+
+        let lastTap = 0;
+        let touchUsed = false;
+
+        const onTap = (cx, cy) => {
+          const now = Date.now();
+          if (now - lastTap < C.TAP_DEBOUNCE || this.ui.isPanelOpen()) return;
+          lastTap = now;
+          this.lastInteraction = now;
+
+          const rect = this.renderer.domElement.getBoundingClientRect();
+          this.pointer.x = ((cx - rect.left) / rect.width) * 2 - 1;
+          this.pointer.y = -((cy - rect.top) / rect.height) * 2 + 1;
+
+          this.raycaster.setFromCamera(this.pointer, this.camera);
+          const hits = this.raycaster.intersectObjects(this.cardMeshes);
+
+          if (hits.length > 0) {
+            const mesh = hits[0].object;
+            this.ui.hapticFeedback(30);
+            this.ui.createRipple(cx, cy, mesh.userData.book.color);
+            this.ui.flashScreen();
+
+            /* Bounce anim — GSAP handles this off main loop */
+            gsap.to(mesh.scale, {
+              x: 1.22, y: 1.22, z: 1.22, duration: 0.10, ease: 'power2.out',
+              onComplete: () =>
+                gsap.to(mesh.scale, { x: 1, y: 1, z: 1, duration: 0.32, ease: 'elastic.out(1.1,0.5)' })
+            });
+
+            mesh.userData.glowIntensity = C.GLOW_INTENSITY_HOVER;
+            setTimeout(() => { mesh.userData.glowIntensity = C.GLOW_INTENSITY_BASE; }, 500);
+
+            this.ui.openPanel(mesh.userData.book, mesh.userData.index, cx, cy);
+          }
+        };
+
+        this.renderer.domElement.addEventListener('touchstart', e => {
+          e.preventDefault();
+          touchUsed = true;
+          onTap(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+
+        this.renderer.domElement.addEventListener('pointerdown', e => {
+          if (touchUsed) { touchUsed = false; return; }
+          onTap(e.clientX, e.clientY);
+        });
+      }
+
+      /* ── MAIN RENDER LOOP (called by setAnimationLoop) ── */
+      _frame() {
+        const delta = this.clock.getDelta();
+        const t = this.clock.elapsedTime;
+
+        /* ── Smooth visibility lerp ── */
+        const lerpRate = this.targetVis > this.visibility ? C.VIS_LERP_IN : C.VIS_LERP_OUT;
+        this.visibility += (this.targetVis - this.visibility) * lerpRate;
+
+        /* ── Idle rotation accumulates only when idle ── */
+        if (Date.now() - this.lastInteraction > C.IDLE_ROTATE_THRESHOLD) {
+          this.idleOffset += delta * C.IDLE_ROTATE_SPEED;
+        }
+
+        const parallax = this.camera.position.x * C.PARALLAX_FACTOR;
+        this.carouselGroup.rotation.y = t * C.CAROUSEL_SPEED + parallax + this.idleOffset;
+
+        const vis = this.visibility;
+
+        /* ── Card updates ── */
+        const camPos = this.camera.position;
+
+        this.cardMeshes.forEach(mesh => {
+          const ud = mesh.userData;
+
+          /* Entry animation */
+          if (ud.entering && this.tracking) {
+            if (!ud.entryStart) ud.entryStart = t;
+            const elapsed = t - ud.entryStart - ud.entryDelay;
+            if (elapsed > 0) {
+              const prog = Math.min(elapsed / 0.4, 1);
+              const ease = 1 - Math.pow(1 - prog, 3);
+              const scale = 0.1 + ease * 0.9;
+              mesh.scale.setScalar(scale);
+              if (prog >= 1) ud.entering = false;
+            }
+          }
+
+          /* Float */
+          const floatY = ud.baseY + Math.sin(t * 1.05 + ud.phase) * 0.011;
+          mesh.position.y = floatY;
+          ud.glow.position.y = floatY;
+
+          /* Billboard — lookAt is the fastest way */
+          mesh.lookAt(camPos);
+          mesh.rotation.x = C.CARD_TILT;
+          ud.glow.lookAt(camPos);
+          ud.glow.rotation.x = C.CARD_TILT;
+
+          /* Smooth opacity lerp — eliminates pop/flicker */
+          const dist = mesh.position.distanceTo(camPos);
+          const fade = THREE.MathUtils.clamp(
+            (dist - C.DEPTH_FADE_NEAR) / (C.DEPTH_FADE_FAR - C.DEPTH_FADE_NEAR), 0, 1
+          );
+          const target = vis * (1 - fade * 0.4);
+
+          /* Lerp opacity instead of snapping */
+          mesh.material.opacity += (target - mesh.material.opacity) * 0.12;
+          ud.glow.material.opacity += (target * ud.glowIntensity - ud.glow.material.opacity) * 0.12;
+        });
+
+        this.fx.animate(t, vis);
+
+        this.renderer.render(this.scene, this.camera);
+      }
+    }
+
+    /* ─────────────────────────────────────────
+       UI MANAGER  (unchanged logic, minor perf)
+    ───────────────────────────────────────── */
+    class UIManager {
+      constructor(dataManager) {
+        this.dm = dataManager;
+        this.books = dataManager.getBooks();
+
+        this.$ls = document.getElementById('ls');
+        this.$fill = document.getElementById('ls-fill');
+        this.$stat = document.getElementById('ls-stat');
+        this.$err = document.getElementById('err');
+        this.$flash = document.getElementById('tap-flash');
+        this.$hud = document.getElementById('hud');
+        this.$hlive = document.getElementById('hlive');
+        this.$scanUI = document.getElementById('scan-ui');
+        this.$frame = document.getElementById('scan-frame');
+        this.$hint = document.getElementById('taphint');
+        this.$panel = document.getElementById('panel');
+        this.$sheet = document.getElementById('psheet');
+        this.$veil = document.getElementById('pveil');
+        this.$accent = document.getElementById('p-accent');
+        this.$handle = document.getElementById('p-handle');
+
+        this.activeTab = 'overview';
+        this.currentIdx = 0;
+        this.panelOpen = false;
+        this.hintShown = false;
+        this.touchStartY = 0;
+
+        this._initAnims();
+        this._setupEvents();
+      }
+
+      _initAnims() {
+        gsap.set(['#ls-chip', '#ls-title', '#ls-sub'], { opacity: 0, y: 18 });
+        gsap.set(['#ls-spin', '#ls-bar', '#ls-stat'], { opacity: 0 });
+        gsap.timeline()
+          .to('#ls-chip', { opacity: 1, y: 0, duration: .5, ease: 'power3.out' }, .15)
+          .to('#ls-title', { opacity: 1, y: 0, duration: .65, ease: 'power3.out' }, .32)
+          .to('#ls-sub', { opacity: 1, y: 0, duration: .5, ease: 'power2.out' }, .55)
+          .to('#ls-spin', { opacity: 1, duration: .4 }, .8)
+          .to('#ls-bar', { opacity: 1, duration: .4 }, .9)
+          .to('#ls-stat', { opacity: 1, duration: .4 }, 1.0);
+        gsap.set([this.$hud, this.$scanUI, this.$frame], { opacity: 0 });
+      }
+
+      setLoadingStatus(msg, pct) {
+        this.$stat.textContent = msg;
+        if (pct !== undefined) this.$fill.style.width = pct + '%';
+      }
+
+      hideLoadingScreen() {
+        gsap.to(this.$ls, { opacity: 0, duration: .75, ease: 'power2.inOut', onComplete: () => this.$ls.style.display = 'none' });
+        gsap.to(this.$hud, { opacity: 1, duration: .55, ease: 'power3.out', delay: .3 });
+        gsap.to(this.$scanUI, { opacity: 1, duration: .6, ease: 'power3.out', delay: .5 });
+        gsap.to(this.$frame, { opacity: 1, duration: .45, delay: .5 });
+      }
+
+      showError(msg) {
+        document.getElementById('etxt').textContent = msg;
+        this.$err.classList.add('show');
+        gsap.to(this.$ls, { opacity: 0, duration: .6, onComplete: () => this.$ls.style.display = 'none' });
+      }
+
+      updateHUD(status) {
+        this.$hlive.innerHTML = `<div class="hlive-dot"></div>${status}`;
+      }
+
+      showScanUI() {
+        gsap.to(this.$scanUI, { opacity: 1, y: 0, duration: .45, ease: 'power2.out' });
+        gsap.to(this.$frame, { opacity: 1, duration: .35 });
+      }
+
+      hideScanUI() {
+        gsap.to(this.$scanUI, { opacity: 0, y: 14, duration: .38, ease: 'power2.in' });
+        gsap.to(this.$frame, { opacity: 0, duration: .28 });
+      }
+
+      showTapHint() {
+        if (this.hintShown) return;
+        this.hintShown = true;
+        gsap.to(this.$hint, { opacity: 1, scale: 1, duration: .5, ease: 'back.out(1.8)' });
+        setTimeout(() => gsap.to(this.$hint, { opacity: 0, scale: .9, duration: .4, ease: 'power2.in' }), C.HINT_DURATION);
+      }
+
+      createRipple(x, y, color) {
+        const size = 200;
+        const el = document.createElement('div');
+        el.className = 'ripple';
+        Object.assign(el.style, {
+          left: (x - size / 2) + 'px', top: (y - size / 2) + 'px',
+          width: size + 'px', height: size + 'px',
+          background: `radial-gradient(circle, ${color}60 0%, ${color}00 70%)`,
+        });
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 750);
+      }
+
+      flashScreen() {
+        gsap.fromTo(this.$flash, { opacity: 1 }, { opacity: 0, duration: .5, ease: 'power2.out' });
+      }
+
+      hapticFeedback(ms = 25) {
+        if (navigator.vibrate) navigator.vibrate(ms);
+      }
+
+      _populatePanel(book, idx) {
+        this.currentIdx = idx;
+        this.$accent.style.background = `linear-gradient(90deg,${book.color},${book.color}22)`;
+
+        const cover = document.getElementById('p-cover');
+        cover.textContent = book.glyph;
+        cover.style.background = `linear-gradient(135deg,${book.color}1a,${book.color}06)`;
+        cover.style.borderColor = `${book.color}30`;
+
+        document.getElementById('p-num').textContent = `Book ${idx + 1} of ${this.books.length}`;
+        document.getElementById('p-num').style.color = book.color;
+        document.getElementById('p-title').textContent = book.title;
+        document.getElementById('p-author').textContent = book.author;
+
+        document.querySelectorAll('#p-stars .p-star').forEach((s, i) => {
+          s.classList.remove('lit', 'pop');
+          setTimeout(() => { if (i < book.rating) s.classList.add('lit', 'pop'); }, i * 65 + 200);
+        });
+
+        const tagsEl = document.getElementById('p-tags');
+        tagsEl.innerHTML = '';
+        book.tags.forEach((tag, i) => {
+          const el = document.createElement('span');
+          el.className = 'p-tag'; el.textContent = tag;
+          const c = book.tagC[i] || book.color;
+          el.style.color = c; el.style.borderColor = c + '44'; el.style.background = c + '0d';
+          tagsEl.appendChild(el);
+        });
+
+        document.getElementById('p-summary').textContent = book.summary;
+
+        const fill = document.getElementById('p-fill');
+        const pct = document.getElementById('p-pct');
+        fill.style.background = `linear-gradient(90deg,${book.color},${book.color}77)`;
+        pct.style.color = book.color;
+        fill.style.width = '0%'; pct.textContent = '0%';
+        setTimeout(() => { fill.style.width = book.progress + '%'; pct.textContent = book.progress + '%'; }, 380);
+
+        const grid = document.getElementById('d-grid');
+        grid.innerHTML = '';
+        Object.entries(book.details).forEach(([k, v]) => {
+          grid.innerHTML += `<div class="d-cell"><div class="d-label">${k}</div><div class="d-val" style="color:${book.color}">${v}</div></div>`;
+        });
+
+        const klist = document.getElementById('k-list');
+        klist.innerHTML = '';
+        book.concepts.forEach((con, i) => {
+          klist.innerHTML += `<div class="k-item"><span class="k-num" style="color:${book.color}">0${i + 1}</span><span class="k-txt">${con}</span></div>`;
+        });
+
+        document.getElementById('w-icon').textContent = book.glyph;
+        document.getElementById('w-sub').textContent = book.whySub;
+
+        const wcards = document.getElementById('w-cards');
+        wcards.innerHTML = '';
+        book.whyCards.forEach(c => {
+          wcards.innerHTML += `<div class="w-card"><div class="w-cico">${c.icon}</div><div><div class="w-ctitle" style="color:${book.color}">${c.title}</div><div class="w-cdesc">${c.desc}</div></div></div>`;
+        });
+
+        const qwrap = document.getElementById('q-wrap');
+        qwrap.innerHTML = '';
+        book.quotes.forEach((q, i) => {
+          qwrap.innerHTML += `<div class="q-card" style="border-color:${book.color}20"><div class="q-text">${q}</div><div class="q-src" style="color:${book.color}70">Insight ${i + 1} · ${book.author.split(',')[0]}</div></div>`;
+        });
+      }
+
+      openPanel(book, idx, tx, ty) {
+        this.hapticFeedback(30);
+        this.createRipple(tx, ty, book.color);
+        this.flashScreen();
+
+        document.querySelectorAll('.tbtn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'overview'));
+        document.querySelectorAll('.tpane').forEach(p => p.classList.toggle('active', p.id === 'tab-overview'));
+        this.activeTab = 'overview';
+
+        this._populatePanel(book, idx);
+        this.$panel.classList.add('open');
+        this.panelOpen = true;
+        gsap.set(this.$panel, { opacity: 1 });
+        gsap.to(this.$sheet, { y: '0%', duration: .48, ease: 'expo.out' });
+      }
+
+      closePanel() {
+        if (!this.panelOpen) return;
+        this.hapticFeedback(14);
+        this.panelOpen = false;
+        gsap.to(this.$sheet, {
+          y: '102%', duration: .32, ease: 'expo.in',
+          onComplete: () => {
+            this.$panel.classList.remove('open');
+            gsap.set(this.$panel, { opacity: 0 });
+          }
+        });
+      }
+
+      switchTab(tab) {
+        if (tab === this.activeTab) return;
+        document.querySelectorAll('.tbtn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+        document.querySelectorAll('.tpane').forEach(p => p.classList.toggle('active', p.id === `tab-${tab}`));
+        this.activeTab = tab;
+        this.hapticFeedback(10);
+      }
+
+      nextBook() {
+        this.hapticFeedback(16);
+        const next = (this.currentIdx + 1) % this.books.length;
+        const cont = document.querySelector('.p-content');
+        gsap.to(cont, {
+          opacity: 0, x: -18, duration: .14, ease: 'power2.in',
+          onComplete: () => {
+            this._populatePanel(this.books[next], next);
+            gsap.fromTo(cont, { opacity: 0, x: 18 }, { opacity: 1, x: 0, duration: .2, ease: 'power2.out' });
+          }
+        });
+      }
+
+      _setupEvents() {
+        document.querySelectorAll('.tbtn').forEach(btn => btn.addEventListener('click', () => this.switchTab(btn.dataset.tab)));
+        document.getElementById('btn-close').addEventListener('click', () => this.closePanel());
+        document.getElementById('btn-next').addEventListener('click', () => this.nextBook());
+        this.$veil.addEventListener('click', () => this.closePanel());
+
+        /* Drag-to-close handle */
+        this.$handle.addEventListener('touchstart', e => { this.touchStartY = e.touches[0].clientY; }, { passive: true });
+        this.$handle.addEventListener('touchmove', e => {
+          const dy = e.touches[0].clientY - this.touchStartY;
+          if (dy > 0) gsap.set(this.$sheet, { y: Math.min(dy * C.PANEL_DRAG_FRICTION, 160) });
+        }, { passive: true });
+        this.$handle.addEventListener('touchend', e => {
+          const dy = e.changedTouches[0].clientY - this.touchStartY;
+          if (dy > C.PANEL_DRAG_THRESHOLD) this.closePanel();
+          else gsap.to(this.$sheet, { y: 0, duration: .26, ease: 'expo.out' });
+        });
+
+        /* Swipe left/right in panel content */
+        const content = document.querySelector('.p-content');
+        let startX = 0;
+        content.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, { passive: true });
+        content.addEventListener('touchend', e => {
+          const dx = e.changedTouches[0].clientX - startX;
+          if (Math.abs(dx) > 100) {
+            if (dx > 0) this.currentIdx = (this.currentIdx - 1 + this.books.length) % this.books.length;
+            this.nextBook();
+          }
+        });
+      }
+
+      isPanelOpen() { return this.panelOpen; }
+    }
+
+    /* ── Bootstrap ── */
+    const dm = new DataManager();
+    const ui = new UIManager(dm);
+    new SceneManager(dm, ui);
+  </script>
+</body>
+
+</html>
